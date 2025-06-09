@@ -1,0 +1,87 @@
+# Base URL
+@baseURL = http://localhost:3000/auth
+
+### Send OTP
+POST {{baseURL}}/send-otp
+Content-Type: application/json
+
+
+{
+  "email": "minetwitter70@gmail.com", 
+  "number": "233553266543"
+}
+
+### Verify OTP & Register User 
+POST {{baseURL}}/verify-otp
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "otp": "954186",
+  "phone": "233553266543",
+  "name": "Test Institution"
+}
+
+### Resend OTP
+POST {{baseURL}}/resend-otp
+Content-Type: application/json
+
+{
+  "email": "test@example.com"
+}
+
+### Sign In
+POST {{baseURL}}/signin 
+Content-Type: application/json
+
+{
+  "email": "hollyghana@gmail.com",
+  "password": "t"
+}
+
+### Forgot Password - Send OTP
+POST {{baseURL}}/forgot-password
+Content-Type: application/json
+
+{
+  "email": "hollyghana@gmail.com"
+}
+
+### Verify Forgot Password OTP
+POST {{baseURL}}/verify-forgot-password-otp
+Content-Type: application/json
+
+{
+  "email": "hollyghana@gmail.com",
+  "otp": "377631"
+}
+
+### Update Password
+POST {{baseURL}}/update-password
+Content-Type: application/json
+
+{
+  "email": "hollyghana@gmail.com",
+  "newPassword": "NewTest@123"
+}
+
+### Create Recipient
+POST {{baseURL}}/create-recipient
+Content-Type: application/json
+
+{
+  "name": "Abina Nana", 
+  "account_number": "0551234987", 
+  "bank_code": "MTN",
+  "currency": "GHS"
+}
+
+### Transfer 
+POST {{baseURL}}/transfer
+Content-Type: application/json
+
+{
+  "amount": 37800,
+  "recipient": "RCP_t0ya41mp35flk40",
+  "reason": "Holiday Flexing"
+}

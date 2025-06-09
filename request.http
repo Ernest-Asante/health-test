@@ -1,0 +1,8 @@
+### Verify OTP
+POST http://localhost:3000/verify-otp
+Content-Type: application/json
+
+{
+  "number": "233200438227",
+  "code": "828629"
+}

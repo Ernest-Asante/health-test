@@ -1,0 +1,7 @@
+### Send OTP
+POST http://localhost:3000/send-otp
+Content-Type: application/json
+
+{
+  "number": "233200438227"
+}
