@@ -493,31 +493,42 @@ router.post("/forgot-password", async (req, res) => {
 
 
 router.post("/update-pincode", async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required" });
+   try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: "Email and Number is required" });
 
-    const userRecord = await admin.auth().getUserByEmail(email).catch(() => null);
-    if (!userRecord) return res.status(400).json({ error: "User not found" });
+  
 
-    const otp = generateOtp();
-    await db.collection("otps").doc(email).set({ otp, timestamp: new Date() });
-
-    // Send OTP via Email
-    await transporter.sendMail({
-      from: "MediTrack <hollyghana@gmail.com>",
-      to: email,
-      subject: "Reset PinCode OTP",
-      text: `Your OTP for pincode reset is ${otp}. It expires in 10 minutes.`,
+     const data = {
+        expiry: 10,
+        length: 6,
+        medium: "sms",
+        message: "This is your OTP from HealthLine. If you didn't request for it, ignore it: %otp_code%",
+        number: phone,
+        sender_id: "HealthLine",
+        type: "numeric",
+      };
+    
+      try {
+        const response = await axios.post("https://sms.arkesel.com/api/otp/generate", data, {
+          headers: {
+            "api-key": ARKESEL_API_KEY,
+          },
+        });
+    
+    
+    return res.json({ message: "OTP sent successfully", data: response.data, success: true});
+  } catch (error) {
+    console.error("Error sending OTP:", error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data || "Failed to send OTP",
     });
-
-    return res.json({ success: true, message: "OTP sent successfully" });
-
+  }
   } catch (error) {
     console.error(error);
-    return res.json({ success: false, message: "Something went wrong" });
-
-  } 
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 /* 
@@ -553,21 +564,48 @@ router.post("/verify-forgot-password-otp", async (req, res) => {
 
 router.post("/verify-pincode-otp", async (req, res) => {
   try {
-    const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ error: "Email and OTP are required" });
+    const {phone, otp } = req.body;
 
-    const docRef = db.collection("otps").doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return res.status(400).json({ error: "Invalid OTP or expired" });
+      if (!otp) return res.status(400).json({ error: "Number is required" });
 
-    const { otp: storedOtp, timestamp } = doc.data();
-    if (storedOtp !== otp) return res.status(400).json({ error: "Incorrect OTP" });
 
-    if (new Date() - timestamp.toDate() > OTP_EXPIRY_TIME) {
-      return res.status(400).json({ error: "OTP expired, request a new one" });
-    }
+     const data = {
+        api_key: ARKESEL_API_KEY,
+        code: otp,
+        number: phone, 
+      };
+    
+      try {
+        const response = await axios.post("https://sms.arkesel.com/api/otp/verify", data, {
+          headers: {
+            "api-key": ARKESEL_API_KEY,
+          },
+        });
+
+        if(response){
+          const data = response.data
+          console.log(response.data)
+
+          if(data.message == "Invalid code"){
+            return res.json({ message: "Invalid OTP"});
+          }
+        }
+
+       
+
+
 
     return res.json({ success: true, message: "OTP verified successfully" });
+
+      } catch (error) {
+        console.error("Error verifying OTP:", error.response?.data || error.message)
+       return res.status(500).json({
+          success: false,
+          message: "An error occured",
+          error: error.response?.data || "Failed to verify OTP",
+        });
+      }
+
 
   } catch (error) {
     console.error(error);
@@ -575,6 +613,7 @@ router.post("/verify-pincode-otp", async (req, res) => {
 
   }
 });
+
 
 /* 
 =========================================
