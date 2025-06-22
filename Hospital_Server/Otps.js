@@ -284,12 +284,13 @@ router.post("/verify-otp", async (req, res) => {
     
     const token = generateJWT(userId, name);
 
+       const balance = parseFloat((0).toFixed(2)); // will be 0.00 as number
     // Store user info in Firestore
     await admin.firestore().collection("h-users").doc(userAuthId).set({
       email,
       name: name,
       phone: Number(phone),
-      balance: 0,
+      balance: balance,
       verified: true, // ✅ Add verified true
       userId,
       authId: userAuthId,
