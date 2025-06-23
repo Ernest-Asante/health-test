@@ -790,6 +790,59 @@ router.post("/send-sms-merchant", async (req, res) => {
   }
 });
 
+router.post("/send-sms-to-recipient", async (req, res) => {
+  let { senderName, receiverName, receiverPhone, amount, transactionId } = req.body;
+
+  // Validate inputs for recipient SMS
+  if (!senderName || !receiverName || !receiverPhone || !amount || !transactionId) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing required fields: senderName (organization), receiverName, receiverPhone, amount, transactionId"
+    });
+  }
+
+  try {
+    // Ensure phone number is string for API and amount is float 
+    receiverPhone = receiverPhone.toString();
+    amount = parseFloat(amount);
+ 
+    // Safety check after parsing
+    if (isNaN(receiverPhone) || isNaN(amount)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid receiverPhone or amount format",
+      });
+    }
+
+    // Message for the Receiver
+    // `senderName` will be the organization's name, as passed from the frontend.
+    const receiverMessage = `Hello ${receiverName}, you have received a payment of GHS ${amount.toFixed(2)} from ${senderName}. Transaction ID: ${transactionId}. Your balance has been updated.`;
+
+    // Send SMS to Receiver
+    const smsResponse = await axios.post("https://sms.arkesel.com/api/v2/sms/send", {
+      sender: "HealthLine", // Your SMS sender ID
+      message: receiverMessage,
+      recipients: [receiverPhone],
+    }, {
+      headers: {
+        "api-key": ARKESEL_API_KEY,
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "SMS sent successfully to recipient",
+      smsResponse: smsResponse.data,
+    });
+  } catch (error) {
+    console.error("Error sending SMS to recipient:", error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data || "Failed to send SMS to recipient",
+    });
+  }
+});
+
 router.post('/upload-pdf-and-process', upload.single('pdfFile'), async (req, res) => {
   if (!req.file) {
       return res.status(400).json({ error: 'No PDF file uploaded.' });
