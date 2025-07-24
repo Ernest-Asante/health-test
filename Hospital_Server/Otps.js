@@ -9,7 +9,13 @@ const admin = require("firebase-admin");
 
 const multer = require('multer');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+const fetch = require('node-fetch');
 const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
+const pptxParser = require('pptx-parser'); // or whatever parser you are using
+const path = require('path'); // Built-in, no install needed
+
 
 const API_KEY = "AIzaSyDIVPljDwKtn3GhwfkvzxP6JeP_OBoQkh4"; // Get API key from .env
 if (!API_KEY) {
@@ -284,12 +290,14 @@ router.post("/verify-otp", async (req, res) => {
     
     const token = generateJWT(userId, name);
 
+    const balance = parseFloat((0).toFixed(2)); // will be 0.00 as number
+
     // Store user info in Firestore
     await admin.firestore().collection("h-users").doc(userAuthId).set({
       email,
       name: name,
       phone: Number(phone),
-      balance: 0,
+      balance: balance,
       verified: true, // ✅ Add verified true
       userId,
       authId: userAuthId,
@@ -493,31 +501,42 @@ router.post("/forgot-password", async (req, res) => {
 
 
 router.post("/update-pincode", async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required" });
+   try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: "Email and Number is required" });
 
-    const userRecord = await admin.auth().getUserByEmail(email).catch(() => null);
-    if (!userRecord) return res.status(400).json({ error: "User not found" });
+  
 
-    const otp = generateOtp();
-    await db.collection("otps").doc(email).set({ otp, timestamp: new Date() });
-
-    // Send OTP via Email
-    await transporter.sendMail({
-      from: "MediTrack <hollyghana@gmail.com>",
-      to: email,
-      subject: "Reset PinCode OTP",
-      text: `Your OTP for pincode reset is ${otp}. It expires in 10 minutes.`,
+     const data = {
+        expiry: 10,
+        length: 6,
+        medium: "sms",
+        message: "This is your OTP from HealthLine. If you didn't request for it, ignore it: %otp_code%",
+        number: phone,
+        sender_id: "HealthLine",
+        type: "numeric",
+      };
+    
+      try {
+        const response = await axios.post("https://sms.arkesel.com/api/otp/generate", data, {
+          headers: {
+            "api-key": ARKESEL_API_KEY,
+          },
+        });
+    
+    
+    return res.json({ message: "OTP sent successfully", data: response.data, success: true});
+  } catch (error) {
+    console.error("Error sending OTP:", error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data || "Failed to send OTP",
     });
-
-    return res.json({ success: true, message: "OTP sent successfully" });
-
+  }
   } catch (error) {
     console.error(error);
-    return res.json({ success: false, message: "Something went wrong" });
-
-  } 
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 /* 
@@ -553,21 +572,48 @@ router.post("/verify-forgot-password-otp", async (req, res) => {
 
 router.post("/verify-pincode-otp", async (req, res) => {
   try {
-    const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ error: "Email and OTP are required" });
+    const {phone, otp } = req.body;
 
-    const docRef = db.collection("otps").doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return res.status(400).json({ error: "Invalid OTP or expired" });
+      if (!otp) return res.status(400).json({ error: "Number is required" });
 
-    const { otp: storedOtp, timestamp } = doc.data();
-    if (storedOtp !== otp) return res.status(400).json({ error: "Incorrect OTP" });
 
-    if (new Date() - timestamp.toDate() > OTP_EXPIRY_TIME) {
-      return res.status(400).json({ error: "OTP expired, request a new one" });
-    }
+     const data = {
+        api_key: ARKESEL_API_KEY,
+        code: otp,
+        number: phone, 
+      };
+    
+      try {
+        const response = await axios.post("https://sms.arkesel.com/api/otp/verify", data, {
+          headers: {
+            "api-key": ARKESEL_API_KEY,
+          },
+        });
+
+        if(response){
+          const data = response.data
+          console.log(response.data)
+
+          if(data.message == "Invalid code"){
+            return res.json({ message: "Invalid OTP"});
+          }
+        }
+
+       
+
+
 
     return res.json({ success: true, message: "OTP verified successfully" });
+
+      } catch (error) {
+        console.error("Error verifying OTP:", error.response?.data || error.message)
+       return res.status(500).json({
+          success: false,
+          message: "An error occured",
+          error: error.response?.data || "Failed to verify OTP",
+        });
+      }
+
 
   } catch (error) {
     console.error(error);
@@ -750,66 +796,139 @@ router.post("/send-sms-merchant", async (req, res) => {
   }
 });
 
-router.post('/upload-pdf-and-process', upload.single('pdfFile'), async (req, res) => {
-  if (!req.file) {
-      return res.status(400).json({ error: 'No PDF file uploaded.' });
+
+router.post("/send-sms-to-recipient", async (req, res) => {
+  let { senderName, receiverName, receiverPhone, amount, transactionId } = req.body;
+
+  // Validate inputs for recipient SMS
+  if (!senderName || !receiverName || !receiverPhone || !amount || !transactionId) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing required fields: senderName (organization), receiverName, receiverPhone, amount, transactionId"
+    });
   }
 
   try {
-      // 1. Extract text from PDF
-      const dataBuffer = req.file.buffer; // The file is in memory as a buffer
-      const data = await pdfParse(dataBuffer);
-      const fullText = data.text;
+    // Ensure phone number is string for API and amount is float 
+    receiverPhone = receiverPhone.toString();
+    amount = parseFloat(amount);
+ 
+    // Safety check after parsing
+    if (isNaN(receiverPhone) || isNaN(amount)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid receiverPhone or amount format",
+      });
+    }
 
-      // 2. Prepare prompt for Gemini AI
-      const prompt = `
+    // Message for the Receiver
+    // `senderName` will be the organization's name, as passed from the frontend.
+    const receiverMessage = `Hello ${receiverName}, you have received a payment of GHS ${amount.toFixed(2)} from ${senderName}. Transaction ID: ${transactionId}. Your balance has been updated.`;
+
+    // Send SMS to Receiver
+    const smsResponse = await axios.post("https://sms.arkesel.com/api/v2/sms/send", {
+      sender: "HealthLine", // Your SMS sender ID
+      message: receiverMessage,
+      recipients: [receiverPhone],
+    }, {
+      headers: {
+        "api-key": ARKESEL_API_KEY,
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "SMS sent successfully to recipient",
+      smsResponse: smsResponse.data,
+    });
+  } catch (error) {
+    console.error("Error sending SMS to recipient:", error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data || "Failed to send SMS to recipient",
+    });
+  }
+});
+
+router.post('/analyze-file-url', async (req, res) => {
+  const { fileUrl } = req.body;
+
+  if (!fileUrl) {
+    return res.status(400).json({ error: 'Missing fileUrl in request body.' });
+  }
+
+  try {
+    const fileRes = await fetch(fileUrl);
+    if (!fileRes.ok) throw new Error(`Failed to fetch file. Status: ${fileRes.status}`);
+
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
+    const ext = path.extname(fileUrl).toLowerCase();
+
+    let fullText = '';
+
+    if (ext === '.pdf') {
+      const pdfData = await pdfParse(buffer);
+      fullText = pdfData.text;
+
+    } else if (ext === '.docx') {
+      const result = await mammoth.extractRawText({ buffer });
+      fullText = result.value;
+
+    } else if (ext === '.pptx') {
+      const slides = await pptxParser(buffer);
+      fullText = slides.map(slide => slide.text).join('\n');
+
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type. Only PDF, DOCX, and PPTX are supported.' });
+    }
+
+    // AI Prompt
+    const prompt = `
 You're an AI tutor. Analyze the following course content and generate:
 
 1. A summary broken into units or subtopics.
 2. For each unit, include at most 3 MCQs with 4 options and the correct answer.
-3. Structure the response in JSON like this:
+3. For each unit, try to include a relevant YouTube video link if it helps with understanding.
+4. Structure the response in JSON like this:
 [
-{
-  "unit": "Unit title",
-  "summary": "Short summary of this unit...",
-  "questions": [
-    {
-      "question": "What is ...?",
-      "options": [
-          {"value": "A", "text": "Option A text"},
-          {"value": "B", "text": "Option B text"},
-          {"value": "C", "text": "Option C text"},
-          {"value": "D", "text": "Option D text"}
+  {
+    "unit": "Unit title",
+    "summary": "Short summary of this unit...",
+    "youtube": "https://youtube.com/...",
+    "questions": [
+      {
+        "question": "What is ...?",
+        "options": [
+          {"value": "A", "text": "Option A"},
+          {"value": "B", "text": "Option B"},
+          {"value": "C", "text": "Option C"},
+          {"value": "D", "text": "Option D"}
         ],
-      "answer": "C"
-    }
-  ]
-}
+        "answer": "C"
+      }
+    ]
+  }
 ]
 
 Here is the course content:
 ${fullText}
 `;
 
-      // 3. Call Gemini AI
-      const result = await model.generateContent(prompt);
-      let text = result.response.text();
+    const aiResponse = await model.generateContent(prompt);
+    const rawText = aiResponse.response.text();
+    const cleanedText = rawText.trim().replace(/```(json)?/g, '').trim();
 
-      // Clean up markdown-like formatting if needed
-      const jsonStr = text.trim().replace(/```(json)?/g, '').trim();
+    try {
+      const parsed = JSON.parse(cleanedText);
+      return res.status(200).json(parsed);
+    } catch (jsonError) {
+      console.error('❌ JSON parse error:', jsonError.message);
+      return res.status(500).json({ error: 'Failed to parse AI response.' });
+    }
 
-      try {
-          const parsedResponse = JSON.parse(jsonStr);
-          res.json(parsedResponse); // Send the parsed JSON back to the client
-      } catch (parseError) {
-          console.error('Error parsing Gemini response as JSON:', parseError);
-          console.error('Raw Gemini response:', jsonStr);
-          res.status(500).json({ error: 'Could not parse Gemini response as JSON.', details: jsonStr });
-      }
-
-  } catch (error) {
-      console.error('Server error during PDF processing or AI call:', error);
-      res.status(500).json({ error: 'Failed to process PDF or get AI response.', details: error.message });
+  } catch (err) {
+    console.error('❌ Processing error:', err.message);
+    return res.status(500).json({ error: 'Could not process file.', details: err.message });
   }
 });
 

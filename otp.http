@@ -1,5 +1,5 @@
 # Base URL
-@baseURL = http://localhost:3000/auth
+@baseURL = https://health-test-sop6.onrender.com/auth
 
 ### Send OTP
 POST {{baseURL}}/send-otp
@@ -7,7 +7,7 @@ Content-Type: application/json
 
 
 {
-  "email": "minetwitter70@gmail.com", 
+  "email": "minetwitter70@gmail.com",
   "number": "233553266543"
 }
 

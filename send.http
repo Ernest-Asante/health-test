@@ -1,9 +1,9 @@
 ### Send SMS
-POST http://localhost:3000/send-sms
+POST https://health-test-sop6.onrender.com/send-sms
 Content-Type: application/json
 
 {
   "sender": "HealthLine",
   "message": "Hello, this is a test message 4 !",
-  "recipients": ["233553266543", "233200213177"]
+  "recipients": ["233553266543", "233200438227"]
 } 
