@@ -13,7 +13,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fetch = require('node-fetch');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
-const pptxParser = require('pptx-parser'); // or whatever parser you are using
+//const pptxParser = require('pptx-parser'); // or whatever parser you are using
 const path = require('path'); // Built-in, no install needed
 
 
@@ -874,12 +874,8 @@ router.post('/analyze-file-url', async (req, res) => {
       const result = await mammoth.extractRawText({ buffer });
       fullText = result.value;
 
-    } else if (ext === '.pptx') {
-      const slides = await pptxParser(buffer);
-      fullText = slides.map(slide => slide.text).join('\n');
-
     } else {
-      return res.status(400).json({ error: 'Unsupported file type. Only PDF, DOCX, and PPTX are supported.' });
+      return res.status(400).json({ error: 'Unsupported file type. Only PDF and DOCX are supported.' });
     }
 
     // AI Prompt
