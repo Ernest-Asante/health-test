@@ -10,9 +10,8 @@ const admin = require("firebase-admin");
 const multer = require('multer');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const fetch = require('node-fetch');
-const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
+import fetch from 'node-fetch'; // Use global fetch if on Node 18+
+import pdfParse from 'pdf-parse';
 //const pptxParser = require('pptx-parser'); // or whatever parser you are using
 const path = require('path'); // Built-in, no install needed
 
@@ -859,27 +858,17 @@ router.post('/analyze-file-url', async (req, res) => {
 
   try {
     const fileRes = await fetch(fileUrl);
-    if (!fileRes.ok) throw new Error(`Failed to fetch file. Status: ${fileRes.status}`);
 
-    const buffer = Buffer.from(await fileRes.arrayBuffer());
-    const ext = path.extname(fileUrl).toLowerCase();
-
-    let fullText = '';
-
-    if (ext === '.pdf') {
-      const pdfData = await pdfParse(buffer);
-      fullText = pdfData.text;
-
-    } else if (ext === '.docx') {
-      const result = await mammoth.extractRawText({ buffer });
-      fullText = result.value;
-
-    } else {
-      return res.status(400).json({ error: 'Unsupported file type. Only PDF and DOCX are supported.' });
+    if (!fileRes.ok) {
+      throw new Error(Failed to fetch file. Status: ${fileRes.status});
     }
 
-    // AI Prompt
-    const prompt = `
+   const buffer = Buffer.from(await fileRes.arrayBuffer());
+
+    const pdfData = await pdfParse(buffer);
+    const fullText = pdfData.text;
+
+    const prompt = 
 You're an AI tutor. Analyze the following course content and generate:
 
 1. A summary broken into units or subtopics.
@@ -908,11 +897,12 @@ You're an AI tutor. Analyze the following course content and generate:
 
 Here is the course content:
 ${fullText}
-`;
+;
 
     const aiResponse = await model.generateContent(prompt);
     const rawText = aiResponse.response.text();
-    const cleanedText = rawText.trim().replace(/```(json)?/g, '').trim();
+    const cleanedText = rawText.trim().replace(/
+(json)?/g, '').trim();
 
     try {
       const parsed = JSON.parse(cleanedText);
@@ -927,6 +917,5 @@ ${fullText}
     return res.status(500).json({ error: 'Could not process file.', details: err.message });
   }
 });
-
 
 module.exports = router;
