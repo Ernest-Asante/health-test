@@ -10,11 +10,22 @@ const admin = require("firebase-admin");
 const multer = require('multer');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const fetch = require('node-fetch');
-const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
-const pptxParser = require('pptx-parser'); // or whatever parser you are using
-const path = require('path'); // Built-in, no install needed
+//const fetch = require('node-fetch'); // For fetching URLs
+const path = require('path'); // For path operations like extname
+const { URL } = require('url'); // For parsing URL from fileUrl
+
+const fs = require('fs/promises'); // Async file operations
+const os = require('os'); // To get the system temp directory
+
+const mammoth = require('mammoth'); // For .docx parsing
+const pdfParse = require('pdf-parse'); // For .pdf parsing
+
+// --- NEW: Replace pptx2json with node-pptx-parser ---
+const PptxParser = require('node-pptx-parser').default;
+// --- END NEW ---
+const JSON5 = require('json5'); // Add this to your top-level imports
+
+
 
 
 const API_KEY = "AIzaSyDIVPljDwKtn3GhwfkvzxP6JeP_OBoQkh4"; // Get API key from .env
@@ -24,8 +35,10 @@ if (!API_KEY) {
     process.exit(1);
 }
 
+
+
 const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-001" });
 
 // Configure Multer for file uploads
 const storage = multer.memoryStorage(); // Store the file in memory as a Buffer
@@ -36,6 +49,28 @@ const OTP_EXPIRY_TIME = 10 * 60 * 1000;
 const apiSecret = "tzessysupzy5w6dj365mdfbg52bwm4w73rev4unnbyearyj6f4uxp3eq4c4psju2"; // Replace with your actual Stream API Secret
 
 const ARKESEL_API_KEY = "TndkTnRCeHdLUHFXVkJDcGdST3E";
+
+const YOUTUBE_API_KEY = 'AIzaSyBozBKoer2PI00pheCSXU2V8sNOgdT5urM';
+
+async function fetchYouTubeVideo(query) {
+  const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&key=${YOUTUBE_API_KEY}&type=video&maxResults=1`;
+
+  const response = await fetch(apiUrl);
+  if (!response.ok) {
+    console.log(`YouTube API request failed: ${response.statusText}`)
+    throw new Error(`YouTube API request failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  console.log(data)
+  const video = data.items[0];
+  if (!video) return null;
+
+  const videoId = video.id.videoId;
+  console.log(`https://www.youtube.com/embed/${videoId}`)
+  return `https://www.youtube.com/embed/${videoId}`;
+}
+
 
 // Nodemailer Transporter
 const transporter = nodemailer.createTransport({
@@ -850,51 +885,70 @@ router.post("/send-sms-to-recipient", async (req, res) => {
   }
 });
 
-router.post('/analyze-file-url', async (req, res) => {
+
+
+ router.post('/analyze-file-urls', async (req, res) => {
   const { fileUrl } = req.body;
 
   if (!fileUrl) {
     return res.status(400).json({ error: 'Missing fileUrl in request body.' });
   }
 
+  let tempFilePath = null;
+
   try {
     const fileRes = await fetch(fileUrl);
-    if (!fileRes.ok) throw new Error(`Failed to fetch file. Status: ${fileRes.status}`);
+    if (!fileRes.ok) {
+      throw new Error(`Failed to fetch file. Status: ${fileRes.status}`);
+    }
 
     const buffer = Buffer.from(await fileRes.arrayBuffer());
-    const ext = path.extname(fileUrl).toLowerCase();
+    const parsedUrl = new URL(fileUrl);
+    const ext = path.extname(parsedUrl.pathname).toLowerCase();
 
     let fullText = '';
 
     if (ext === '.pdf') {
       const pdfData = await pdfParse(buffer);
       fullText = pdfData.text;
-
     } else if (ext === '.docx') {
       const result = await mammoth.extractRawText({ buffer });
       fullText = result.value;
-
     } else if (ext === '.pptx') {
-      const slides = await pptxParser(buffer);
-      fullText = slides.map(slide => slide.text).join('\n');
+      const uniqueFilename = `temp_pptx_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.pptx`;
+      tempFilePath = path.join(os.tmpdir(), uniqueFilename);
+      await fs.writeFile(tempFilePath, buffer);
 
-    } else {
-      return res.status(400).json({ error: 'Unsupported file type. Only PDF, DOCX, and PPTX are supported.' });
+      try {
+        const parser = new PptxParser(tempFilePath);
+        const slides = await parser.extractText();
+
+        fullText = slides
+          .map(slide => slide.text.join('\n'))
+          .join('\n\n')
+          .trim();
+      } catch (error) {
+        return res.status(500).json({ error: 'Failed to parse PPTX file.' });
+      }
     }
 
-    // AI Prompt
+    // 🔍 Step 1: Fetch YouTube Video for Entire Lecture
+    const lectureVideoUrl = await fetchYouTubeVideo(fullText.slice(0, 200)); // Use only first 500 chars for brevity
+
+    // 🎯 Step 2: Generate Gemini Prompt (link inserted only in final unit)
     const prompt = `
 You're an AI tutor. Analyze the following course content and generate:
 
-1. A summary broken into units or subtopics.
+1. A well-detailed summary broken into units or subtopics.
 2. For each unit, include at most 3 MCQs with 4 options and the correct answer.
-3. For each unit, try to include a relevant YouTube video link if it helps with understanding.
-4. Structure the response in JSON like this:
+3. Only the final unit should include this YouTube video to help understand the overall lecture: ${lectureVideoUrl}
+4. Strictly generate valid JSON in the format:
+
 [
   {
     "unit": "Unit title",
     "summary": "Short summary of this unit...",
-    "youtube": "https://youtube.com/...",
+    "youtube": "https://youtube.com/embed/....", // Only in the last unit
     "questions": [
       {
         "question": "What is ...?",
@@ -914,23 +968,134 @@ Here is the course content:
 ${fullText}
 `;
 
+    // Gemini Response
     const aiResponse = await model.generateContent(prompt);
     const rawText = aiResponse.response.text();
-    const cleanedText = rawText.trim().replace(/```(json)?/g, '').trim();
+    const cleanedText = rawText.trim().replace(/```json\n|```/g, '').trim();
 
     try {
-      const parsed = JSON.parse(cleanedText);
+      const parsed = JSON5.parse(cleanedText);
+      console.log(parsed)
       return res.status(200).json(parsed);
+      
     } catch (jsonError) {
-      console.error('❌ JSON parse error:', jsonError.message);
-      return res.status(500).json({ error: 'Failed to parse AI response.' });
+      return res.status(500).json({
+        error: 'AI response could not be parsed as JSON.',
+        rawOutput: cleanedText,
+      });
     }
 
   } catch (err) {
-    console.error('❌ Processing error:', err.message);
     return res.status(500).json({ error: 'Could not process file.', details: err.message });
   }
 });
+
+
+router.post('/analyze-file-url', async (req, res) => {
+  const { fileUrl } = req.body;
+  if (!fileUrl) return res.status(400).json({ error: 'Missing fileUrl in request body.' });
+
+  let tempFilePath = null;
+
+ try {
+    const fileRes = await fetch(fileUrl);
+    if (!fileRes.ok) {
+      throw new Error(`Failed to fetch file. Status: ${fileRes.status}`);
+    }
+
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
+    const parsedUrl = new URL(fileUrl);
+    const ext = path.extname(parsedUrl.pathname).toLowerCase();
+
+    let fullText = '';
+
+    if (ext === '.pdf') {
+      const pdfData = await pdfParse(buffer);
+      fullText = pdfData.text;
+    } else if (ext === '.docx') {
+      const result = await mammoth.extractRawText({ buffer });
+      fullText = result.value;
+    } else if (ext === '.pptx') {
+      const uniqueFilename = `temp_pptx_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.pptx`;
+      tempFilePath = path.join(os.tmpdir(), uniqueFilename);
+      await fs.writeFile(tempFilePath, buffer);
+
+      try {
+        const parser = new PptxParser(tempFilePath);
+        const slides = await parser.extractText();
+
+        fullText = slides
+          .map(slide => slide.text.join('\n'))
+          .join('\n\n')
+          .trim();
+      } catch (error) {
+        return res.status(500).json({ error: 'Failed to parse PPTX file.' });
+      }
+    }
+
+
+    // Step 1: Ask Gemini for a good lecture title
+    const titlePrompt = `
+Given the following course content, generate a short and accurate title for it.
+Only respond with the title as a plain string — no extra words or formatting.
+
+Course Content:
+${fullText.slice(0, 1500)}
+`;
+
+    const titleResponse = await model.generateContent(titlePrompt);
+    const lectureTitle = titleResponse.response.text().trim().replace(/["']/g, '');
+
+    console.log('📘 Gemini Lecture Title:', lectureTitle);
+
+    // Step 2: Search YouTube with that title
+    const lectureVideoUrl = await fetchYouTubeVideo(lectureTitle);
+
+    // Step 3: Now prompt Gemini to analyze content and include only the final video link
+    const mainPrompt = `
+You're an AI tutor. Analyze the following course content and generate:
+
+1. A well-detailed summary broken into units or subtopics.
+2. For each unit, include at most 3 MCQs with 4 options and the correct answer.
+3. Only the final unit should include this YouTube video to help understand the overall lecture: ${lectureVideoUrl}
+4. Strictly generate valid JSON in the format:
+
+[
+  {
+    "unit": "Unit title",
+    "summary": "Short detailed summary of this unit...",
+    "youtube": "https://youtube.com/embed/....", // Only in the first and last unit
+    "questions": [
+      {
+        "question": "What is ...?",
+        "options": [
+          {"value": "A", "text": "Option A"},
+          {"value": "B", "text": "Option B"},
+          {"value": "C", "text": "Option C"}
+         
+        ],
+        "answer": "C"
+      }
+    ]
+  }
+]
+
+Here is the course content:
+${fullText}
+`;
+
+    const aiResponse = await model.generateContent(mainPrompt);
+    const rawText = aiResponse.response.text().trim().replace(/```json\n|```/g, '');
+    const parsed = JSON5.parse(rawText);
+
+    return res.status(200).json(parsed);
+
+  } catch (err) {
+    console.error('❌ Error:', err.message);
+    return res.status(500).json({ error: 'Could not process file.', details: err.message });
+  }
+});
+
 
 
 module.exports = router;
