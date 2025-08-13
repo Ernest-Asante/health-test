@@ -241,49 +241,14 @@ router.post("/send-merchant-otp", async (req, res) => {
 
 router.post("/verify-otp", async (req, res) => {
   try {
-    const { name, email, phone, otp, userAuthId } = req.body;
-    if (!name || !email || !otp || !phone || !userAuthId) {
+    const { name, email, phone, userAuthId } = req.body;
+    if (!name || !email || !phone || !userAuthId) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
     console.log(userAuthId)
     
-      const data = {
-        api_key: ARKESEL_API_KEY,
-        code: otp,
-        number: phone, 
-      };
     
-      try {
-        const response = await axios.post("https://sms.arkesel.com/api/otp/verify", data, {
-          headers: {
-            "api-key": ARKESEL_API_KEY,
-          },
-        });
-
-        if(response){
-          const data = response.data
-          console.log(response.data)
-
-          if(data.message == "Invalid code"){
-            return res.json({ message: "Invalid OTP"});
-          }
-        }
-
-       
-
-
-
-       
-      } catch (error) {
-        console.error("Error verifying OTP:", error.response?.data || error.message)
-       return res.status(500).json({
-          success: false,
-          message: "An error occured",
-          error: error.response?.data || "Failed to verify OTP",
-        });
-      }
-
     // Generate unique user ID
     const generateUserId = (name) => {
       // Step 1: Split and get the first two parts of the name
@@ -358,49 +323,14 @@ router.post("/verify-otp", async (req, res) => {
 
 router.post("/verify-merchant-otp", async (req, res) => { 
   try {
-    const {businessName, email, otp, userAuthId, phone } = req.body;
-    if (!businessName || !email || !otp || !userAuthId  || !phone) { 
+    const {businessName, email, userAuthId, phone } = req.body;
+    if (!businessName || !email || !userAuthId  || !phone) { 
       return res.status(400).json({ error: "All fields are required" });
     }
  
     console.log(userAuthId)
     
-      const data = {
-        api_key: ARKESEL_API_KEY,
-        code: otp,
-        number: phone, 
-      };
-    
-      try {
-        const response = await axios.post("https://sms.arkesel.com/api/otp/verify", data, {
-          headers: {
-            "api-key": ARKESEL_API_KEY,
-          },
-        });
-
-        if(response){
-          const data = response.data
-          console.log(response.data)
-
-          if(data.message == "Invalid code"){
-            return res.json({ message: "Invalid OTP"});
-          }
-        }
-
-       
-
-
-
-       
-      } catch (error) {
-        console.error("Error verifying OTP:", error.response?.data || error.message)
-       return res.status(500).json({
-          success: false,
-          message: "An error occured",
-          error: error.response?.data || "Failed to verify OTP",
-        });
-      }
-
+     
 
       const generateUserId = (name) => {
         // Step 1: Split and get the first two parts of the name
