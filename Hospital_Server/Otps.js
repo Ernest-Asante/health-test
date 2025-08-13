@@ -84,17 +84,7 @@ const transporter = nodemailer.createTransport({
 // Function to generate OTP
 const generateOtp = () => crypto.randomInt(100000, 999999).toString();
 
-async function isPhoneUnique(phone) {
-  const myPhone = parseInt(phone)
-  const snapshot = await db.collection("h-users").where("phone", "==", myPhone).limit(1).get();
-  return snapshot.empty
-}
 
-async function isPhoneUnique2(phone) {
-  const myPhone = parseInt(phone)
-  const snapshot = await db.collection("merchants").where("phone", "==", myPhone).limit(1).get();
-  return snapshot.empty
-}
 
 async function isEmailUnique(email) {
   const snapshot = await db.collection("h-users").where("email", "==", email).limit(1).get();
@@ -244,9 +234,23 @@ router.post("/verify-otp", async (req, res) => {
     const { name, email, phone, userAuthId } = req.body;
     if (!name || !email || !phone || !userAuthId) {
       return res.status(400).json({ error: "All fields are required" });
+        
     }
 
     console.log(userAuthId)
+
+      const uniqueEmail = await isEmailUnique(email)
+    const uniqueEmail2 = await isEmailUnique2(email)
+
+    if(!uniqueEmail){
+      console.log("email is already in use")
+      return res.json({ message: "Email is already registered"});
+    }
+
+    if(!uniqueEmail2){
+      console.log("email is already in use")
+      return res.json({ message: "Email is already registered"});
+    }
     
     
     // Generate unique user ID
@@ -330,7 +334,18 @@ router.post("/verify-merchant-otp", async (req, res) => {
  
     console.log(userAuthId)
     
-     
+       const uniqueEmail = await isEmailUnique(email)
+    const uniqueEmail2 = await isEmailUnique2(email)
+
+    if(!uniqueEmail){
+      console.log("email is already in use")
+      return res.json({ message: "Email is already registered"});
+    }
+
+    if(!uniqueEmail2){
+      console.log("email is already in use")
+      return res.json({ message: "Email is already registered"});
+    }
 
       const generateUserId = (name) => {
         // Step 1: Split and get the first two parts of the name
