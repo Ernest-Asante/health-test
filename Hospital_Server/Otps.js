@@ -1045,7 +1045,6 @@ ${fullText}
 
 router.post("/webhook", async (req, res) => {
   try {
-    // verify paystack signature
     const hash = crypto
       .createHmac("sha512", PAYSTACK_SECRET)
       .update(JSON.stringify(req.body))
@@ -1058,8 +1057,14 @@ router.post("/webhook", async (req, res) => {
     const event = req.body;
 
     if (event.event === "charge.success") {
-      const { email, amount } = event.data; // amount is in kobo
-      const paidAmount = amount / 100; // convert to Naira/GHS depending on your Paystack settings
+      const amount = event.data.amount / 100; // convert from kobo
+      const email = event.data.customer?.email; // ✅ correct place
+        console.log(email)
+
+      if (!email) {
+        console.error("⚠️ No email found in Paystack event");
+        return res.status(400).send("No email in event");
+      }
 
       const usersRef = admin.firestore().collection("h-users");
       const snapshot = await usersRef.where("email", "==", email).limit(1).get();
@@ -1069,10 +1074,10 @@ router.post("/webhook", async (req, res) => {
         const currentBalance = userDoc.data().balance || 0;
 
         await userDoc.ref.update({
-          balance: currentBalance + paidAmount,
+          balance: currentBalance + amount,
         });
 
-        console.log(`✅ Balance updated for ${email}: +${paidAmount}`);
+        console.log(`✅ Balance updated for ${email}: +${amount}`);
       } else {
         console.log(`⚠️ No user found with email ${email}`);
       }
