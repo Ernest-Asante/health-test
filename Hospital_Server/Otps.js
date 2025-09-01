@@ -52,6 +52,8 @@ const ARKESEL_API_KEY = "TndkTnRCeHdLUHFXVkJDcGdST3E";
 
 const YOUTUBE_API_KEY = 'AIzaSyBozBKoer2PI00pheCSXU2V8sNOgdT5urM';
 
+const PAYSTACK_SECRET = 'sk_test_3a65b1fafb0295f3a8e7cbdc32ff41c2940778e2'
+
 async function fetchYouTubeVideo(query) {
   const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&key=${YOUTUBE_API_KEY}&type=video&maxResults=1`;
 
@@ -1041,6 +1043,47 @@ ${fullText}
   }
 });
 
+router.post("/webhook", async (req, res) => {
+  try {
+    // verify paystack signature
+    const hash = crypto
+      .createHmac("sha512", PAYSTACK_SECRET)
+      .update(JSON.stringify(req.body))
+      .digest("hex");
+
+    if (hash !== req.headers["x-paystack-signature"]) {
+      return res.status(401).send("Invalid signature");
+    }
+
+    const event = req.body;
+
+    if (event.event === "charge.success") {
+      const { email, amount } = event.data; // amount is in kobo
+      const paidAmount = amount / 100; // convert to Naira/GHS depending on your Paystack settings
+
+      const usersRef = admin.firestore().collection("h-users");
+      const snapshot = await usersRef.where("email", "==", email).limit(1).get();
+
+      if (!snapshot.empty) {
+        const userDoc = snapshot.docs[0];
+        const currentBalance = userDoc.data().balance || 0;
+
+        await userDoc.ref.update({
+          balance: currentBalance + paidAmount,
+        });
+
+        console.log(`✅ Balance updated for ${email}: +${paidAmount}`);
+      } else {
+        console.log(`⚠️ No user found with email ${email}`);
+      }
+    }
+
+    res.status(200).send("Webhook received");
+  } catch (err) {
+    console.error("Webhook Error:", err);
+    res.status(500).send("Webhook error");
+  }
+});
 
 
 module.exports = router;
