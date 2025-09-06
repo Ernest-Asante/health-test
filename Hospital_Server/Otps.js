@@ -1090,5 +1090,10 @@ router.post("/webhook", async (req, res) => {
   }
 });
 
+// Wake-up route
+router.get("/ping", (req, res) => {
+  res.status(200).send("Server is awake ✅");
+});
+
 
 module.exports = router;
