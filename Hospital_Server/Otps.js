@@ -52,7 +52,7 @@ const ARKESEL_API_KEY = "TndkTnRCeHdLUHFXVkJDcGdST3E";
 
 const YOUTUBE_API_KEY = 'AIzaSyBozBKoer2PI00pheCSXU2V8sNOgdT5urM';
 
-const PAYSTACK_SECRET = 'sk_test_3a65b1fafb0295f3a8e7cbdc32ff41c2940778e2'
+const PAYSTACK_SECRET = 'sk_test_6c610086b04a2bcf687ab3ac7481186a310639ba'
 
 async function fetchYouTubeVideo(query) {
   const apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&key=${YOUTUBE_API_KEY}&type=video&maxResults=1`;
