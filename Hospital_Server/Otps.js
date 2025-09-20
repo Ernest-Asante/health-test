@@ -1092,7 +1092,7 @@ router.post("/webhook", async (req, res) => {
 
       if (event.event === "transfer.success") {
   const amountInGHS = event.data.amount / 100;
-  const email = event.data.email;
+  const email = event.data.recipient.email;
 
   if (!email) {
     console.error("⚠️ No email found in transfer metadata");
@@ -1238,9 +1238,7 @@ router.post('/transfer', async (req, res) => {
       amount: Math.round(amount * 100), // GHS → pesewas
       recipient: recipient_code,
       reference,
-         metadata: {
-        email, // 👈 store merchant email here
-      },
+       
     };
 
     const response = await paystack.post('/transfer', body);
