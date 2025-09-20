@@ -1088,11 +1088,53 @@ router.post("/webhook", async (req, res) => {
     }
 
     res.status(200).send("Webhook received");
+
+      if (event === "transfer.success") {
+  const amountInGHS = data.amount / 100;
+  const email = data.metadata?.email;
+
+  if (!email) {
+    console.error("⚠️ No email found in transfer metadata");
+    return;
+  }
+
+  // Find merchant by email
+  const merchantsSnap = await db
+    .collection("merchants")
+    .where("email", "==", email)
+    .limit(1)
+    .get();
+
+  if (merchantsSnap.empty) {
+    console.error(`⚠️ No merchant found with email: ${email}`);
+    return;
+  }
+
+  const merchantRef = merchantsSnap.docs[0].ref;
+
+  // Deduct balance
+  await merchantRef.update({
+    balance: FieldValue.increment(-amountInGHS),
+  });
+
+  console.log(`✅ Deducted GHS ${amountInGHS} from merchant ${email}`);
+}
+
+if (event === "transfer.failed") {
+  console.warn("❌ Transfer failed:", data);
+}
+
+if (event === "transfer.reversed") {
+  console.warn("🔄 Transfer reversed:", data);
+}
+
   } catch (err) {
     console.error("Webhook Error:", err);
     res.status(500).send("Webhook error");
   }
 });
+
+
 
 // Wake-up route
 router.get("/ping", (req, res) => {
@@ -1122,30 +1164,37 @@ router.post('/recipients', async (req, res) => {
 
     console.log('Created recipient:', recipient);
 
-    // 2. Update Firestore (merchants collection)
-    const merchantRef = db.collection('merchants').where('email', '==', email);
-    const snapshot = await merchantRef.get();
+    // 2) find merchant by email
+    const merchantQuery = db.collection('merchants').where('email', '==', email);
+    const snapshot = await merchantQuery.get();
 
     if (snapshot.empty) {
-      return res.status(404).json({ error: 'Merchant not found' });
+      // Option: create merchant doc here if desired. For now return 404
+      return res.status(404).json({ status: 'error', error: 'Merchant not found' });
     }
 
-    // Assuming email is unique, update the first match
-    const merchantDoc = snapshot.docs[0].ref;
+    const merchantDocRef = snapshot.docs[0].ref;
+    const merchantData = snapshot.docs[0].data();
+    const existingRecipients = merchantData.recipients || [];
 
-    const newRecipient = {
-      name,
-      type: 'mobile_money',
-      account_number,
-      bank_code,
-      recipient_code: recipient.recipient_code
-    };
+    // Avoid adding duplicate recipient codes
+    const alreadyExists = existingRecipients.some(r => r.recipient_code === newRecipient.recipient_code);
 
-    await merchantDoc.update({
-      recipients: FieldValue.arrayUnion(newRecipient)
+    if (!alreadyExists) {
+      // Use FieldValue.arrayUnion to append safely (concurrency-friendly)
+      await merchantDocRef.update({
+        recipients: FieldValue.arrayUnion(newRecipient)
+      });
+    } else {
+      console.log('Recipient already exists in merchant doc, skipping arrayUnion.');
+    }
+
+    // return success
+    return res.json({
+      status: 'success',
+      message: 'Recipient created & saved',
+      recipient: newRecipient
     });
-
-    res.json({ message: 'Recipient created & saved', recipient: newRecipient });
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).json({ error: 'Failed to create recipient' });
@@ -1158,9 +1207,9 @@ router.post('/recipients', async (req, res) => {
  */
 router.post('/transfer', async (req, res) => {
   try {
-    const { recipient_code, amount } = req.body;
+    const { recipient_code, amount, email } = req.body;
 
-    if (!recipient_code || !amount) {
+    if (!recipient_code || !amount || !email) {
       return res.status(400).json({ error: 'Missing required fields: recipient_code, amount' });
     }
 
@@ -1173,11 +1222,14 @@ router.post('/transfer', async (req, res) => {
       reason: ' Lyncam healthlink Payout',
       amount: Math.round(amount * 100), // GHS → pesewas
       recipient: recipient_code,
-      reference
+      reference,
+         metadata: {
+        email, // 👈 store merchant email here
+      },
     };
 
     const response = await paystack.post('/transfer', body);
-    res.json({ message: 'Transfer initiated', transfer: response.data.data });
+    res.json({status: 'success', message: 'Transfer initiated', transfer: response.data.data });
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).json({ error: 'Failed to initiate transfer' });
