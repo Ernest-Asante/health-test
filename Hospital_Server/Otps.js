@@ -10,6 +10,9 @@ const admin = require("firebase-admin");
 const multer = require('multer');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+const { v4: uuidv4 } = require('uuid');
+const paystack = require('./utils');
+
 //const fetch = require('node-fetch'); // For fetching URLs
 const path = require('path'); // For path operations like extname
 const { URL } = require('url'); // For parsing URL from fileUrl
@@ -1094,6 +1097,147 @@ router.post("/webhook", async (req, res) => {
 router.get("/ping", (req, res) => {
   res.status(200).send("Server is awake ✅");
 });
+
+
+router.post('/recipients', async (req, res) => {
+  try {
+    const { email, name, account_number, bank_code } = req.body;
+
+    if (!email || !name || !account_number || !bank_code) {
+      return res.status(400).json({ error: 'Missing required fields: email, name, account_number, bank_code' });
+    }
+
+    // 1. Call Paystack API
+    const body = {
+      type: 'mobile_money',
+      name,
+      account_number,
+      bank_code, // "MTN", "TEL", "ATL"
+      currency: 'GHS'
+    };
+
+    const response = await paystack.post('/transferrecipient', body);
+    const recipient = response.data.data;
+
+    console.log('Created recipient:', recipient);
+
+    // 2. Update Firestore (merchants collection)
+    const merchantRef = db.collection('merchants').where('email', '==', email);
+    const snapshot = await merchantRef.get();
+
+    if (snapshot.empty) {
+      return res.status(404).json({ error: 'Merchant not found' });
+    }
+
+    // Assuming email is unique, update the first match
+    const merchantDoc = snapshot.docs[0].ref;
+
+    const newRecipient = {
+      name,
+      type: 'mobile_money',
+      account_number,
+      bank_code,
+      recipient_code: recipient.recipient_code
+    };
+
+    await merchantDoc.update({
+      recipients: FieldValue.arrayUnion(newRecipient)
+    });
+
+    res.json({ message: 'Recipient created & saved', recipient: newRecipient });
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(500).json({ error: 'Failed to create recipient' });
+  }
+});
+
+
+/**
+ * 2. Initiate transfer
+ */
+router.post('/transfer', async (req, res) => {
+  try {
+    const { recipient_code, amount } = req.body;
+
+    if (!recipient_code || !amount) {
+      return res.status(400).json({ error: 'Missing required fields: recipient_code, amount' });
+    }
+
+    // ✅ Generate compliant transfer reference (UUID v4)
+    let reference = `txn_${uuidv4()}`.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    if (reference.length > 50) reference = reference.slice(0, 50);
+
+    const body = {
+      source: 'balance',
+      reason: ' Lyncam healthlink Payout',
+      amount: Math.round(amount * 100), // GHS → pesewas
+      recipient: recipient_code,
+      reference
+    };
+
+    const response = await paystack.post('/transfer', body);
+    res.json({ message: 'Transfer initiated', transfer: response.data.data });
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(500).json({ error: 'Failed to initiate transfer' });
+  }
+});
+
+
+router.post('/webhook/paystack', async (req, res) => {
+  try {
+    const { event, data } = req.body;
+
+    // ✅ Acknowledge Paystack right away
+    res.sendStatus(200);
+
+    // Continue processing in background
+    if (event === 'transfer.success') {
+      const recipientCode = data.recipient?.recipient_code;
+      const amountInGHS = data.amount / 100;
+
+      if (!recipientCode) {
+        console.error("No recipient_code in webhook data");
+        return;
+      }
+
+      // Find merchant
+      const merchantsSnap = await db.collection('merchants').get();
+      let merchantDoc = null;
+
+      merchantsSnap.forEach((doc) => {
+        const recipients = doc.data().recipients || [];
+        if (recipients.some((r) => r.recipient_code === recipientCode)) {
+          merchantDoc = doc.ref;
+        }
+      });
+
+      if (!merchantDoc) {
+        console.error(`No merchant found with recipient_code: ${recipientCode}`);
+        return;
+      }
+
+      // Deduct balance
+      await merchantDoc.update({
+        balance: FieldValue.increment(-amountInGHS),
+      });
+
+      console.log(`Deducted GHS ${amountInGHS} from merchant balance`);
+    }
+
+    if (event === 'transfer.failed') {
+      console.log("Transfer failed:", data);
+    }
+
+    if (event === 'transfer.reversed') {
+      console.log("Transfer reversed:", data);
+    }
+  } catch (err) {
+    console.error("Webhook error:", err.message);
+    // Don’t send anything here because we already sent 200
+  }
+});
+
 
 
 module.exports = router;
