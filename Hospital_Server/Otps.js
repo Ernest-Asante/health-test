@@ -1049,6 +1049,7 @@ ${fullText}
 
 router.post("/webhook", async (req, res) => {
   try {
+          res.status(200).send("Webhook received");
     const hash = crypto
       .createHmac("sha512", PAYSTACK_SECRET)
       .update(JSON.stringify(req.body))
@@ -1075,20 +1076,34 @@ router.post("/webhook", async (req, res) => {
       const snapshot = await usersRef.where("email", "==", email).limit(1).get();
 
       if (!snapshot.empty) {
-        const userDoc = snapshot.docs[0];
-        const currentBalance = userDoc.data().balance || 0;
+    const userDoc = snapshot.docs[0];
+    const userData = userDoc.data();
+    const currentBalance = userData.balance || 0;
+    const finalBalance = currentBalance + amount;
 
-        await userDoc.ref.update({
-          balance: currentBalance + amount,
-        });
+    // ✅ update balance
+    await userDoc.ref.update({
+      balance: finalBalance,
+    });
 
-        console.log(`✅ Balance updated for ${email}: +${amount}`);
-      } else {
-        console.log(`⚠️ No user found with email ${email}`);
-      }
+    console.log(`✅ Balance updated for ${email}: +${amount}`);
+
+    // ✅ add notification
+    await admin.firestore().collection("notifications").add({
+      type: "cashin",
+      date: admin.firestore.FieldValue.serverTimestamp(),
+      body: `Your account has been credited. Previous balance: ${currentBalance}, Amount added: ${amount}, Final balance: ${finalBalance}`,
+      authId: userData.authId, // get from user document
+      email: email, // optional if you want to store
+    });
+
+    console.log(`📩 Notification stored for ${email}`);
+  } else {
+    console.log(`⚠️ No user found with email ${email}`);
+  }
     }
 
-    res.status(200).send("Webhook received");
+
 
       if (event.event === "transfer.success") {
   const amountInGHS = event.data.amount / 100;
@@ -1106,19 +1121,35 @@ router.post("/webhook", async (req, res) => {
     .limit(1)
     .get();
 
-  if (merchantsSnap.empty) {
-    console.error(`⚠️ No merchant found with email: ${email}`);
-    return;
-  }
+ if (merchantsSnap.empty) {
+  console.error(`⚠️ No merchant found with email: ${email}`);
+  return;
+}
 
-  const merchantRef = merchantsSnap.docs[0].ref;
+const merchantDoc = merchantsSnap.docs[0];
+const merchantRef = merchantDoc.ref;
+const merchantData = merchantDoc.data();
 
-  // Deduct balance
-  await merchantRef.update({
-    balance: FieldValue.increment(-amountInGHS),
-  });
+const currentBalance = merchantData.balance || 0;
+const finalBalance = currentBalance - amountInGHS;
 
-  console.log(`✅ Deducted GHS ${amountInGHS} from merchant ${email}`);
+// Deduct balance
+await merchantRef.update({
+  balance: finalBalance,
+});
+
+console.log(`✅ Deducted GHS ${amountInGHS} from merchant ${email}`);
+
+// ✅ Add notification
+await admin.firestore().collection("notifications").add({
+  type: "cashout",
+  date: admin.firestore.FieldValue.serverTimestamp(),
+  body: `You have made a withdrawal. Previous balance: ${currentBalance}, Amount deducted: ${amountInGHS}, Final balance: ${finalBalance}`,
+  authId: merchantData.authId, // pulled from merchant doc
+  email: email, // optional, good for querying later
+});
+
+console.log(`📩 Cashout notification stored for ${email}`);
 }
 
 if (event.event === "transfer.failed") {
