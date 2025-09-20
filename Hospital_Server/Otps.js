@@ -1092,7 +1092,7 @@ router.post("/webhook", async (req, res) => {
 
       if (event.event === "transfer.success") {
   const amountInGHS = event.data.amount / 100;
-  const email = event.data.metadata?.email;
+  const email = event.data.email;
 
   if (!email) {
     console.error("⚠️ No email found in transfer metadata");
@@ -1155,6 +1155,7 @@ router.post('/recipients', async (req, res) => {
     const body = {
       type: 'mobile_money',
       name,
+      email,
       account_number,
       bank_code, // "MTN", "TEL", "ATL"
       currency: 'GHS'
@@ -1191,12 +1192,15 @@ router.post('/recipients', async (req, res) => {
     // Avoid adding duplicate recipient codes
     const alreadyExists = existingRecipients.some(r => r.recipient_code === newRecipient.recipient_code);
 
-    if (!alreadyExists) {
-      // Use FieldValue.arrayUnion to append safely (concurrency-friendly)
-      await merchantDocRef.update({
-        recipients: FieldValue.arrayUnion(newRecipient)
-      });
-    } else {
+   if (!alreadyExists) {
+  // Append recipient to merchant document
+  await merchantDocRef.update({
+    recipients: FieldValue.arrayUnion(newRecipient)
+  });
+
+
+}
+ else {
       console.log('Recipient already exists in merchant doc, skipping arrayUnion.');
     }
 
