@@ -1157,12 +1157,22 @@ router.post('/recipients', async (req, res) => {
       account_number,
       bank_code, // "MTN", "TEL", "ATL"
       currency: 'GHS'
+     
     };
 
     const response = await paystack.post('/transferrecipient', body);
     const recipient = response.data.data;
 
     console.log('Created recipient:', recipient);
+
+       const newRecipient = {
+      name: name,
+      type: 'mobile_money',
+      account_number: account_number,
+      bank_code: bank_code,
+      recipient_code: recipient.recipient_code,
+      createdAt: admin.firestore.Timestamp.now()
+    };
 
     // 2) find merchant by email
     const merchantQuery = db.collection('merchants').where('email', '==', email);
