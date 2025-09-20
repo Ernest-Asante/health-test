@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { db } = require("./firebase");
+
 const nodemailer = require("nodemailer");
 const jwt = require('jsonwebtoken');
 const crypto = require("crypto");
@@ -29,7 +30,7 @@ const PptxParser = require('node-pptx-parser').default;
 const JSON5 = require('json5'); // Add this to your top-level imports
 
 
-
+const FieldValue = admin.firestore.FieldValue;
 
 const API_KEY = "AIzaSyDIVPljDwKtn3GhwfkvzxP6JeP_OBoQkh4"; // Get API key from .env
 if (!API_KEY) {
