@@ -1059,6 +1059,7 @@ router.post("/webhook", async (req, res) => {
     }
 
     const event = req.body;
+      console.log(event)
 
     if (event.event === "charge.success") {
       const amount = event.data.amount / 100; // convert from kobo
@@ -1089,9 +1090,9 @@ router.post("/webhook", async (req, res) => {
 
     res.status(200).send("Webhook received");
 
-      if (event === "transfer.success") {
-  const amountInGHS = data.amount / 100;
-  const email = data.metadata?.email;
+      if (event.event === "transfer.success") {
+  const amountInGHS = event.data.amount / 100;
+  const email = event.data.metadata?.email;
 
   if (!email) {
     console.error("⚠️ No email found in transfer metadata");
@@ -1120,12 +1121,12 @@ router.post("/webhook", async (req, res) => {
   console.log(`✅ Deducted GHS ${amountInGHS} from merchant ${email}`);
 }
 
-if (event === "transfer.failed") {
-  console.warn("❌ Transfer failed:", data);
+if (event.event === "transfer.failed") {
+  console.warn("❌ Transfer failed:", event.data);
 }
 
-if (event === "transfer.reversed") {
-  console.warn("🔄 Transfer reversed:", data);
+if (event.event === "transfer.reversed") {
+  console.warn("🔄 Transfer reversed:", event.data);
 }
 
   } catch (err) {
