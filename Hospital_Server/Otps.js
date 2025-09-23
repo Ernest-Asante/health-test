@@ -50,7 +50,7 @@ const upload = multer({ storage: storage });
 
 // OTP Expiry Time (10 minutes)
 const OTP_EXPIRY_TIME = 10 * 60 * 1000;
-const apiSecret = "tzessysupzy5w6dj365mdfbg52bwm4w73rev4unnbyearyj6f4uxp3eq4c4psju2"; // Replace with your actual Stream API Secret
+const apiSecret = "cpkg9yrgqbxc786esgdvvmbkuz82y37gfecdrsaks6bgdnys67e57xsxdycn3xnj"; // Replace with your actual Stream API Secret
 
 const ARKESEL_API_KEY = "TndkTnRCeHdLUHFXVkJDcGdST3E";
 
