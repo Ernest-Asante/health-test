@@ -499,7 +499,7 @@ router.post("/update-pincode", async (req, res) => {
         medium: "sms",
         message: "This is your OTP from HealthLine. If you didn't request for it, ignore it: %otp_code%",
         number: phone,
-        sender_id: "HealthLine",
+        sender_id: "Lyncam",
         type: "numeric",
       };
     
