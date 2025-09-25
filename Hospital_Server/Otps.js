@@ -107,6 +107,116 @@ async function isEmailUnique2(email) {
 ✅ Send OTP for Registration
 =========================================
 */
+
+router.post("/email/users", async (req, res) => {
+  try {
+    const { message } = req.body;
+    const usersSnap = await db.collection("h-users").get();
+    const emails = usersSnap.docs.map(doc => doc.data().email);
+
+    await Promise.all(emails.map(email =>
+      transporter.sendMail({
+        from: "Lyncam HealthLink <hollyghana@gmail.com>",
+        to: email,
+        subject: "Broadcast Message",
+        text: message,
+      })
+    ));
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+// Broadcast Email to Merchants
+router.post("/email/merchants", async (req, res) => {
+  try {
+    const { message } = req.body;
+    const merchantsSnap = await db.collection("merchants").get();
+    const emails = merchantsSnap.docs.map(doc => doc.data().email);
+
+    await Promise.all(emails.map(email =>
+      transporter.sendMail({
+        from: "Lyncam HealthLink <hollyghana@gmail.com>",
+        to: email,
+        subject: "Broadcast Message",
+        text: message,
+      })
+    ));
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+// Utility function to normalize phone numbers
+function normalizePhone(phone) {
+  if (!phone) return null;
+  phone = phone.toString().trim();
+
+  if (phone.startsWith("233")) {
+    return phone;
+  } else if (phone.startsWith("0")) {
+    return "233" + phone.substring(1);
+  } else {
+    return phone;
+  }
+}
+
+// Broadcast SMS to Users
+router.post("/sms/users", async (req, res) => {
+  try {
+    const { message } = req.body;
+    const usersSnap = await db.collection("h-users").get();
+    const phones = usersSnap.docs.map(doc => normalizePhone(doc.data().phone)).filter(Boolean);
+
+    await Promise.all(phones.map(phone =>
+      axios.post("https://sms.arkesel.com/api/v2/sms/send", {
+        sender: "Lyncam",
+        message,
+        recipients: [phone],
+      }, {
+        headers: { "api-key": ARKESEL_API_KEY }
+      })
+    ));
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Broadcast SMS to Merchants
+router.post("/sms/merchants", async (req, res) => {
+  try {
+    const { message } = req.body;
+    const merchantsSnap = await db.collection("merchants").get();
+    const phones = merchantsSnap.docs.map(doc => normalizePhone(doc.data().phone)).filter(Boolean);
+
+    await Promise.all(phones.map(phone =>
+      axios.post("https://sms.arkesel.com/api/v2/sms/send", {
+        sender: "Lyncam",
+        message,
+        recipients: [phone],
+      }, {
+        headers: { "api-key": ARKESEL_API_KEY }
+      })
+    ));
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+
+
+
 router.post("/send-otp", async (req, res) => {
   try {
     const { email, number } = req.body;
