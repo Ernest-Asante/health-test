@@ -185,6 +185,7 @@ router.post("/sms/users", async (req, res) => {
     ));
 
     res.json({ success: true });
+      console.log("success")
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
