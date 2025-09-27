@@ -348,58 +348,101 @@ router.post("/send-merchant-otp", async (req, res) => {
 
 router.post("/verify-otp", async (req, res) => {
   try {
-    const { name, email, phone, userAuthId } = req.body;
-    if (!name || !email || !phone || !userAuthId) {
-      return res.status(400).json({ error: "All fields are required" });
-        
+    const { name, email, phone, userAuthId, otp } = req.body;
+
+    // ✅ Validate required fields
+    if (!name || !email || !phone || !userAuthId || !otp) {
+      return res.status(400).json({ error: "All fields including OTP are required" });
     }
 
-    console.log(userAuthId)
+    console.log("User Auth ID:", userAuthId);
 
-      const uniqueEmail = await isEmailUnique(email)
-    const uniqueEmail2 = await isEmailUnique2(email)
+    // ✅ Step 1: Verify OTP with Arkesel
+    const otpData = {
+      api_key: ARKESEL_API_KEY,
+      code: otp,
+      number: phone,
+    };
 
-    if(!uniqueEmail){
-      console.log("email is already in use")
-      return res.json({ message: "Email is already registered"});
+    try {
+      const otpResponse = await axios.post(
+        "https://sms.arkesel.com/api/otp/verify",
+        otpData,
+        {
+          headers: { "api-key": ARKESEL_API_KEY },
+        }
+      );
+
+      const otpResult = otpResponse.data;
+      console.log("Arkesel OTP Verify Response:", otpResult);
+
+      if (otpResult.message === "Invalid code") {
+        return res.json({ success: false, message: "Invalid OTP" });
+      }
+
+      if (otpResult.message !== "OTP Verified Successfully") {
+        return res.json({ success: false, message: "OTP verification failed" });
+      }
+    } catch (error) {
+      console.error("Error verifying OTP:", error.response?.data || error.message);
+      return res.status(500).json({
+        success: false,
+        message: "An error occurred during OTP verification",
+        error: error.response?.data || "Failed to verify OTP",
+      });
     }
 
-    if(!uniqueEmail2){
-      console.log("email is already in use")
-      return res.json({ message: "Email is already registered"});
-    }
-    
-    
-    // Generate unique user ID
+    // ✅ Step 2: Check if email is unique
+  
+
+    // ✅ Step 3: Generate unique userId (string-based)
     const generateUserId = (name) => {
-      // Step 1: Split and get the first two parts of the name
       const nameParts = name.trim().toLowerCase().split(/\s+/).slice(0, 2);
-    
-      // Step 2: Trim each name to 10 characters and clean up
-      const trimmedParts = nameParts.map(part =>
+      const trimmedParts = nameParts.map((part) =>
         part
           .slice(0, 10)
-          .replace(/[^a-z0-9@_-]+/g, "_") // remove invalid characters
-          .replace(/_+/g, "_") // remove extra underscores
+          .replace(/[^a-z0-9@_-]+/g, "_")
+          .replace(/_+/g, "_")
       );
-    
       const baseName = trimmedParts.join("_");
-    
-      // Step 3: Generate a short timestamp (last 6 digits of Unix timestamp)
       const shortTimestamp = Math.floor(Date.now() / 1000).toString().slice(-6);
-    
-      // Step 4: Combine and trim to max 30 characters
       let userId = `${baseName}_${shortTimestamp}`;
       return userId.slice(0, 28);
     };
-    
-    
-    // Generate unique user ID
-    const myName = `${name}`;
-    const userId = generateUserId(myName);
 
+    const userId = generateUserId(name);
 
-    // Generate JWT token
+    // ✅ Step 4: Generate a unique 7-digit number (for user code)
+    const generateUniqueNumber = async () => {
+      let uniqueNumber;
+      let exists = true;
+
+      while (exists) {
+        uniqueNumber = Math.floor(1000000 + Math.random() * 9000000).toString(); // 7-digit number
+        const snapshot = await admin
+          .firestore()
+          .collection("userIds")
+          .doc(uniqueNumber)
+          .get();
+
+        if (!snapshot.exists) {
+          exists = false;
+        }
+      }
+
+      // Store it in userIds collection
+      await admin.firestore().collection("userIds").doc(uniqueNumber).set({
+        createdAt: admin.firestore.Timestamp.now(),
+        userAuthId,
+        userEmail: email,
+      });
+
+      return uniqueNumber;
+    };
+
+    const userCode = await generateUniqueNumber();
+
+    // ✅ Step 5: Generate JWT token
     const generateJWT = (userId, name) => {
       const payload = {
         user_id: userId,
@@ -408,39 +451,38 @@ router.post("/verify-otp", async (req, res) => {
       };
       return jwt.sign(payload, apiSecret, { algorithm: "HS256" });
     };
-    
+
     const token = generateJWT(userId, name);
+    const balance = parseFloat((0).toFixed(2));
 
-    const balance = parseFloat((0).toFixed(2)); // will be 0.00 as number
-
-    // Store user info in Firestore
+    // ✅ Step 6: Register user in Firestore
     await admin.firestore().collection("h-users").doc(userAuthId).set({
       email,
-      name: name,
+      name,
       phone: Number(phone),
-      balance: balance,
-      verified: true, // ✅ Add verified true
+      balance,
+      verified: true,
       userId,
+      userCode, // store 7-digit number
       authId: userAuthId,
       dateCreated: admin.firestore.Timestamp.now(),
       token,
-      userType: "client"
+      userType: "client",
     });
- 
-    
 
     return res.json({
+      success: true,
       message: "User registered successfully",
-      userId: userId,
+      userId,
+      userCode,
       authId: userAuthId,
       token,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error in verify-otp:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
-
 
 router.post("/verify-merchant-otp", async (req, res) => { 
   try {
