@@ -97,7 +97,7 @@ const isPhoneUnique = async (number) => {
   try {
     const usersRef = admin.firestore().collection("h-users");
     const snapshot = await usersRef.where("phone", "==", Number(number)).get();
-      console.log(snapshot)
+     
 
     if (!snapshot.empty) {
       console.log(`Phone ${number} already exists in h-users`);
@@ -115,7 +115,7 @@ const isPhoneUnique2 = async (number) => {
   try {
     const merchantsRef = admin.firestore().collection("merchants");
     const snapshot = await merchantsRef.where("phone", "==", Number(number)).get();
-      console.log(snapshot)
+     
 
     if (!snapshot.empty) {
       console.log(`Phone ${number} already exists in merchants`);
@@ -133,7 +133,7 @@ const isEmailUnique = async (email) => {
   try {
     const usersRef = admin.firestore().collection("h-users");
     const snapshot = await usersRef.where("email", "==", email).get();
-      console.log(snapshot)
+     
 
     if (!snapshot.empty) {
       console.log(`Email ${email} already exists in h-users`);
@@ -151,7 +151,7 @@ const isEmailUnique2 = async (email) => {
   try {
     const merchantsRef = admin.firestore().collection("merchants");
     const snapshot = await merchantsRef.where("email", "==", email).get();
-      console.log(snapshot)
+     
 
     if (!snapshot.empty) {
       console.log(`Email ${email} already exists in merchants`);
@@ -304,12 +304,12 @@ if (!uniquePhoneHUsers) {
 
 
      const data = {
-        expiry: 10,
+        expiry: 5,
         length: 6,
         medium: "sms",
-        message: "This is your OTP from HealthLine. If you didn't request for it, ignore it: %otp_code%",
+        message: "This is your OTP from Lyncam HealthLink. If you didn't request for it, ignore it: %otp_code%",
         number,
-        sender_id: "HealthLine",
+        sender_id: "Lyncam",
         type: "numeric",
       };
     
@@ -359,12 +359,12 @@ if (!uniquePhoneHUsers || !uniquePhoneMerchants) {
 
 
      const data = {
-        expiry: 10,
+        expiry: 5,
         length: 6,
         medium: "sms",
-        message: "This is your OTP from HealthLine. Ignore it if you didn't request for it: %otp_code%",
+        message: "This is your OTP from Lyncam HealthLink. Ignore it if you didn't request for it: %otp_code%",
         number,
-        sender_id: "HealthLine",
+        sender_id: "Lyncam",
         type: "numeric",
       };
     
@@ -511,7 +511,7 @@ router.post("/verify-otp", async (req, res) => {
       balance,
       verified: true,
       userId,
-      userCode, // store 7-digit number
+      userCode: Number(userCode), // store 7-digit number
       authId: userAuthId,
       dateCreated: admin.firestore.Timestamp.now(),
       token,
