@@ -97,6 +97,7 @@ const isPhoneUnique = async (number) => {
   try {
     const usersRef = admin.firestore().collection("h-users");
     const snapshot = await usersRef.where("phone", "==", Number(number)).get();
+      console.log(snapshot)
 
     if (!snapshot.empty) {
       console.log(`Phone ${number} already exists in h-users`);
@@ -114,6 +115,7 @@ const isPhoneUnique2 = async (number) => {
   try {
     const merchantsRef = admin.firestore().collection("merchants");
     const snapshot = await merchantsRef.where("phone", "==", Number(number)).get();
+      console.log(snapshot)
 
     if (!snapshot.empty) {
       console.log(`Phone ${number} already exists in merchants`);
@@ -131,6 +133,7 @@ const isEmailUnique = async (email) => {
   try {
     const usersRef = admin.firestore().collection("h-users");
     const snapshot = await usersRef.where("email", "==", email).get();
+      console.log(snapshot)
 
     if (!snapshot.empty) {
       console.log(`Email ${email} already exists in h-users`);
@@ -148,6 +151,7 @@ const isEmailUnique2 = async (email) => {
   try {
     const merchantsRef = admin.firestore().collection("merchants");
     const snapshot = await merchantsRef.where("email", "==", email).get();
+      console.log(snapshot)
 
     if (!snapshot.empty) {
       console.log(`Email ${email} already exists in merchants`);
