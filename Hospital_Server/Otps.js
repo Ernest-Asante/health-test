@@ -92,15 +92,74 @@ const generateOtp = () => crypto.randomInt(100000, 999999).toString();
 
 
 
-async function isEmailUnique(email) {
-  const snapshot = await db.collection("h-users").where("email", "==", email).limit(1).get();
-  return snapshot.empty
-}
+// ✅ Check if phone is unique in h-users
+const isPhoneUnique = async (number) => {
+  try {
+    const usersRef = admin.firestore().collection("h-users");
+    const snapshot = await usersRef.where("phone", "==", Number(number)).get();
 
-async function isEmailUnique2(email) {
-  const snapshot = await db.collection("merchants").where("email", "==", email).limit(1).get();
-  return snapshot.empty
-}
+    if (!snapshot.empty) {
+      console.log(`Phone ${number} already exists in h-users`);
+      return false; // Not unique
+    }
+    return true; // Unique
+  } catch (error) {
+    console.error("Error checking phone uniqueness in h-users:", error);
+    throw error;
+  }
+};
+
+// ✅ Check if phone is unique in merchants
+const isPhoneUnique2 = async (number) => {
+  try {
+    const merchantsRef = admin.firestore().collection("merchants");
+    const snapshot = await merchantsRef.where("phone", "==", Number(number)).get();
+
+    if (!snapshot.empty) {
+      console.log(`Phone ${number} already exists in merchants`);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error checking phone uniqueness in merchants:", error);
+    throw error;
+  }
+};
+
+// ✅ Check if email is unique in h-users
+const isEmailUnique = async (email) => {
+  try {
+    const usersRef = admin.firestore().collection("h-users");
+    const snapshot = await usersRef.where("email", "==", email).get();
+
+    if (!snapshot.empty) {
+      console.log(`Email ${email} already exists in h-users`);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error checking email uniqueness in h-users:", error);
+    throw error;
+  }
+};
+
+// ✅ Check if email is unique in merchants
+const isEmailUnique2 = async (email) => {
+  try {
+    const merchantsRef = admin.firestore().collection("merchants");
+    const snapshot = await merchantsRef.where("email", "==", email).get();
+
+    if (!snapshot.empty) {
+      console.log(`Email ${email} already exists in merchants`);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error checking email uniqueness in merchants:", error);
+    throw error;
+  }
+};
+
 
 /* 
 =========================================
