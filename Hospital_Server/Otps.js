@@ -281,25 +281,23 @@ router.post("/send-otp", async (req, res) => {
   try {
     const { email, number } = req.body;
     if (!email || !number) return res.status(400).json({ error: "Email and Number is required" });
+      console.log(number)
 
-    const unique = await isPhoneUnique(number)
-    const uniqueEmail = await isEmailUnique(email)
-    const uniqueEmail2 = await isEmailUnique2(email)
+   const uniquePhoneHUsers = await isPhoneUnique(number);
+const uniqueEmailHUsers = await isEmailUnique(email);
+const uniqueEmailMerchants = await isEmailUnique2(email);
+      console.log(uniquePhoneHUsers)
 
-    if(!uniqueEmail){
-      console.log("email is already in use")
-      return res.json({ message: "Email is already registered"});
-    }
+if (!uniqueEmailHUsers || !uniqueEmailMerchants) {
+  console.log("Email already in use");
+  return res.json({ success: false, message: "Email is already registered" });
+}
 
-    if(!uniqueEmail2){
-      console.log("email is already in use")
-      return res.json({ message: "Email is already registered"});
-    }
+if (!uniquePhoneHUsers) {
+  console.log("Phone already in use");
+  return res.json({ success: false, message: "Phone number is already registered" });
+}
 
-    if(!unique){
-      console.log("phone is already in use")
-      return res.json({ message: "Phone number is already registered"});
-    }
 
      const data = {
         expiry: 10,
@@ -340,30 +338,21 @@ router.post("/send-merchant-otp", async (req, res) => {
     const { email, number } = req.body;
     if (!email || !number) return res.status(400).json({ error: "Email and Number is required" });
 
-    const unique = await isPhoneUnique(number)
-    const unique2 = await isPhoneUnique2(number)
-    const uniqueEmail = await isEmailUnique(email)
-    const uniqueEmail2 = await isEmailUnique2(email)
+   const uniquePhoneHUsers = await isPhoneUnique(number);
+const uniquePhoneMerchants = await isPhoneUnique2(number);
+const uniqueEmailHUsers = await isEmailUnique(email);
+const uniqueEmailMerchants = await isEmailUnique2(email);
 
-    if(!uniqueEmail){
-      console.log("email is already in use")
-      return res.json({ message: "Email is already registered"});
-    }
+if (!uniqueEmailHUsers || !uniqueEmailMerchants) {
+  console.log("Email already in use");
+  return res.json({ success: false, message: "Email is already registered" });
+}
 
-    if(!unique){
-      console.log("phone is already in use")
-      return res.json({ message: "Phone number is already registered"});
-    }
+if (!uniquePhoneHUsers || !uniquePhoneMerchants) {
+  console.log("Phone already in use");
+  return res.json({ success: false, message: "Phone number is already registered" });
+}
 
-    if(!uniqueEmail2){
-      console.log("email is already in use")
-      return res.json({ message: "Email is already registered"});
-    }
-
-    if(!unique2){
-      console.log("phone is already in use")
-      return res.json({ message: "Phone number is already registered"});
-    }
 
      const data = {
         expiry: 10,
