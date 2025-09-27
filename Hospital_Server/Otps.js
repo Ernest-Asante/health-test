@@ -534,25 +534,29 @@ router.post("/verify-otp", async (req, res) => {
 
 router.post("/verify-merchant-otp", async (req, res) => { 
   try {
-    const {businessName, email, userAuthId, phone } = req.body;
-    if (!businessName || !email || !userAuthId  || !phone) { 
+    const {businessName, email, userAuthId, phone, otp } = req.body;
+    if (!businessName || !email || !userAuthId  || !phone || !otp) { 
       return res.status(400).json({ error: "All fields are required" });
     }
  
-    console.log(userAuthId)
-    
-       const uniqueEmail = await isEmailUnique(email)
-    const uniqueEmail2 = await isEmailUnique2(email)
+   const otpData = {
+      api_key: ARKESEL_API_KEY,
+      code: otp,
+      number: phone,
+    };
 
-    if(!uniqueEmail){
-      console.log("email is already in use")
-      return res.json({ message: "Email is already registered"});
+    const otpResponse = await axios.post("https://sms.arkesel.com/api/otp/verify", otpData, {
+      headers: { "api-key": ARKESEL_API_KEY },
+    });
+
+    const otpResult = otpResponse.data;
+    console.log("🔸 Arkesel OTP Verify Response:", otpResult);
+
+    // ✅ Step 2: If OTP verification fails
+    if (otpResult.message !== "Successful") {
+      return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
 
-    if(!uniqueEmail2){
-      console.log("email is already in use")
-      return res.json({ message: "Email is already registered"});
-    }
 
       const generateUserId = (name) => {
         // Step 1: Split and get the first two parts of the name
