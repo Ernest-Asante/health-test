@@ -435,7 +435,7 @@ router.post("/verify-otp", async (req, res) => {
       const otpResult = otpResponse.data;
       console.log("Arkesel OTP Verify Response:", otpResult);
 
-     if (!otpResult.success) {
+     if (otpResult.message !== "Successful") {
   return res.status(400).json({ success: false, message: "Invalid OTP" });
 }
     } catch (error) {
