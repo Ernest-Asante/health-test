@@ -700,7 +700,7 @@ router.post("/update-pincode", async (req, res) => {
 
      const data = {
         expiry: 5,
-        length: 4,
+        length: 6,
         medium: "sms",
         message: "This is your OTP from Lyncam HealthLink. If you didn't request for it, ignore it: %otp_code%",
         number: phone,
@@ -790,6 +790,10 @@ router.post("/verify-pincode-otp", async (req, res) => {
           }
         }
 
+
+         if (data.message !== "Successful") {
+      return res.status(400).json({ success: false, message: "Invalid OTP" });
+    }
        
 
 
