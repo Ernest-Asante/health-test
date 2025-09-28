@@ -694,15 +694,15 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/update-pincode", async (req, res) => {
    try {
     const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: "Email and Number is required" });
+    if (!phone) return res.status(400).json({ error: "Phone is required" });
 
   
 
      const data = {
-        expiry: 10,
-        length: 6,
+        expiry: 5,
+        length: 4,
         medium: "sms",
-        message: "This is your OTP from HealthLine. If you didn't request for it, ignore it: %otp_code%",
+        message: "This is your OTP from Lyncam HealthLink. If you didn't request for it, ignore it: %otp_code%",
         number: phone,
         sender_id: "Lyncam",
         type: "numeric",
@@ -765,7 +765,7 @@ router.post("/verify-pincode-otp", async (req, res) => {
   try {
     const {phone, otp } = req.body;
 
-      if (!otp) return res.status(400).json({ error: "Number is required" });
+      if (!otp || !phone) return res.status(400).json({ error: "Phone and Otp is required" });
 
 
      const data = {
