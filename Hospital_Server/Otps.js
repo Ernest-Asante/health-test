@@ -788,12 +788,14 @@ router.post("/verify-pincode-otp", async (req, res) => {
           if(data.message == "Invalid code"){
             return res.json({ message: "Invalid OTP"});
           }
+
+               if (data.message !== "Successful") {
+            return res.status(400).json({ success: false, message: "Invalid OTP" });
+    }
         }
 
 
-         if (data.message !== "Successful") {
-      return res.status(400).json({ success: false, message: "Invalid OTP" });
-    }
+      
        
 
 
