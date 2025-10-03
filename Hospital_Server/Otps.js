@@ -216,30 +216,6 @@ router.post("/email/merchants", async (req, res) => {
 });
 
 
-router.post("/grant-email", async (req, res) => {
-  try {
-    const { message, email } = req.body;
-
-    // Validate input
-    if (!email || !message) {
-      return res.status(400).json({ success: false, error: "Email and message are required" });
-    }
-
-    // Send email to a single recipient
-    await transporter.sendMail({
-      from: "Lyncam HealthLink <lyncamgh@gmail.com>",
-      to: email,
-      subject: "Account Approval Message",
-      text: message,
-    });
-
-    console.log("Email sent successfully to:", email);
-    res.json({ success: true, email });
-  } catch (error) {
-    console.error("Error sending email:", error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 
 
@@ -305,21 +281,20 @@ router.post("/sms/merchants", async (req, res) => {
 });
 
 
-router.post("/grant-sms", async (req, res) => {
+router.post("/notify/user", async (req, res) => {
   try {
-    const { message, phone } = req.body;
+    const { phone, email, message } = req.body;
 
-    if (!phone || !message) {
-      return res.status(400).json({ success: false, error: "Phone and message are required" });
+    if (!phone || !email || !message) {
+      return res.status(400).json({ success: false, error: "Phone, email, and message are required" });
     }
 
-    // Normalize the phone number if you have a function for it
+    // ✅ Normalize phone if neede
+
     const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) {
-      return res.status(400).json({ success: false, error: "Invalid phone number" });
-    }
+    console.log("Sending SMS to:", normalizedPhone);
 
-    // Send SMS to one recipient
+    // 1️⃣ Send SMS first
     await axios.post(
       "https://sms.arkesel.com/api/v2/sms/send",
       {
@@ -327,19 +302,24 @@ router.post("/grant-sms", async (req, res) => {
         message,
         recipients: [normalizedPhone],
       },
-      {
-        headers: { "api-key": ARKESEL_API_KEY },
-      }
+      { headers: { "api-key": ARKESEL_API_KEY } }
     );
 
-    console.log("SMS sent successfully to:", normalizedPhone);
-    res.json({ success: true, phone: normalizedPhone });
+    // 2️⃣ Then send Email
+    await transporter.sendMail({
+      from: "Lyncam HealthLink <lyncamgh@gmail.com>",
+      to: email,
+      subject: "Lyncam HealthLink Notification",
+      text: message,
+    });
+
+    console.log("✅ Notification sent successfully");
+    return res.json({ success: true });
   } catch (error) {
-    console.error("Error sending SMS:", error.message);
-    res.status(500).json({ success: false, error: error.message });
+    console.error("❌ Error sending notification:", error.message);
+    return res.json({ success: false, error: error.message });
   }
 });
-
 
 
 
