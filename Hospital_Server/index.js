@@ -7,6 +7,7 @@ const payRoutes = require("./Paystack-recepient");
 const app = express();
 
 app.use(cors());
+app.options('*', cors());
 app.use(express.json());
 
 // ✅ Include all routes here
