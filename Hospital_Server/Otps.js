@@ -82,8 +82,8 @@ async function fetchYouTubeVideo(query) {
 const transporter = nodemailer.createTransport({
   service: "gmail", 
   auth: {
-    user: "hollyghana@gmail.com",
-    pass: "mzne ajcf zbuz oeul",
+    user: "lyncamgh@gmail.com",
+    pass: "bars wfau krdw wdqk",
   }, 
 });
 
@@ -179,7 +179,7 @@ router.post("/email/users", async (req, res) => {
 
     await Promise.all(emails.map(email =>
       transporter.sendMail({
-        from: "Lyncam HealthLink <hollyghana@gmail.com>",
+        from: "Lyncam HealthLink <lyncamgh@gmail.com>",
         to: email,
         subject: "Broadcast Message",
         text: message,
@@ -202,7 +202,7 @@ router.post("/email/merchants", async (req, res) => {
 
     await Promise.all(emails.map(email =>
       transporter.sendMail({
-        from: "Lyncam HealthLink <hollyghana@gmail.com>",
+        from: "Lyncam HealthLink <lyncamgh@gmail.com>",
         to: email,
         subject: "Broadcast Message",
         text: message,
@@ -214,6 +214,33 @@ router.post("/email/merchants", async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+
+router.post("/grant-email", async (req, res) => {
+  try {
+    const { message, email } = req.body;
+
+    // Validate input
+    if (!email || !message) {
+      return res.status(400).json({ success: false, error: "Email and message are required" });
+    }
+
+    // Send email to a single recipient
+    await transporter.sendMail({
+      from: "Lyncam HealthLink <lyncamgh@gmail.com>",
+      to: email,
+      subject: "Account Approval Message",
+      text: message,
+    });
+
+    console.log("Email sent successfully to:", email);
+    res.json({ success: true, email });
+  } catch (error) {
+    console.error("Error sending email:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 
 // Utility function to normalize phone numbers
@@ -276,6 +303,43 @@ router.post("/sms/merchants", async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+
+router.post("/grant-sms", async (req, res) => {
+  try {
+    const { message, phone } = req.body;
+
+    if (!phone || !message) {
+      return res.status(400).json({ success: false, error: "Phone and message are required" });
+    }
+
+    // Normalize the phone number if you have a function for it
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({ success: false, error: "Invalid phone number" });
+    }
+
+    // Send SMS to one recipient
+    await axios.post(
+      "https://sms.arkesel.com/api/v2/sms/send",
+      {
+        sender: "Lyncam",
+        message,
+        recipients: [normalizedPhone],
+      },
+      {
+        headers: { "api-key": ARKESEL_API_KEY },
+      }
+    );
+
+    console.log("SMS sent successfully to:", normalizedPhone);
+    res.json({ success: true, phone: normalizedPhone });
+  } catch (error) {
+    console.error("Error sending SMS:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 
 
