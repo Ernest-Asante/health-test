@@ -305,13 +305,6 @@ router.post("/notify/user", async (req, res) => {
       { headers: { "api-key": ARKESEL_API_KEY } }
     );
 
-    // 2️⃣ Then send Email
-    await transporter.sendMail({
-      from: "Lyncam HealthLink <lyncamgh@gmail.com>",
-      to: email,
-      subject: "Lyncam HealthLink Notification",
-      text: message,
-    });
 
     console.log("✅ Notification sent successfully");
     return res.json({ success: true });
